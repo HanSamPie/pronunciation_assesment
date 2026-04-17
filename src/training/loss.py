@@ -10,6 +10,9 @@ remains fully reproducible. Default weights defined in configs/base.yaml:
         word:    2.0
         sentence: 5.0
 
+The weights apply at the *level* (phoneme / word / sentence), not per
+individual metric, so all word-level metrics share ``loss_weights.word``.
+
 Design note — gradient imbalance:
     The phoneme level produces far more samples per forward pass than
     word or sentence level.  Without upweighting, phoneme gradients
@@ -23,21 +26,54 @@ import torch.nn as nn
 from omegaconf import DictConfig
 
 
+def _level_of(metric_key: str) -> str:
+    """Return the hierarchical level for a canonical metric key.
+
+    Examples:
+        ``phoneme_accuracy`` → ``"phoneme"``
+        ``word_stress``      → ``"word"``
+        ``sentence_fluency`` → ``"sentence"``
+    """
+    return metric_key.split("_")[0]
+
+
 class MultiTaskLoss(nn.Module):
-    """Weighted sum of MSE losses at phoneme, word, and sentence levels.
+    """Weighted sum of MSE losses across all active metrics.
+
+    The active metrics and their levels are determined by
+    ``cfg.score_mode`` and ``cfg.metrics.<score_mode>``.
+
+    Each metric's loss is weighted by the level weight defined in
+    ``cfg.loss_weights``:
+
+    * ``phoneme_*`` metrics → ``loss_weights.phoneme``
+    * ``word_*``    metrics → ``loss_weights.word``
+    * ``sentence_*``metrics → ``loss_weights.sentence``
 
     Args:
         cfg: Hydra DictConfig containing ``loss_weights.phoneme``,
-             ``loss_weights.word``, and ``loss_weights.sentence``.
+             ``loss_weights.word``, ``loss_weights.sentence``,
+             ``score_mode``, and ``metrics.<score_mode>``.
     """
 
     def __init__(self, cfg: DictConfig) -> None:
         super().__init__()
         lw = cfg.loss_weights
-        self.w_phoneme: float = float(lw.phoneme)
-        self.w_word: float = float(lw.word)
-        self.w_sentence: float = float(lw.sentence)
+        self._level_weights: dict[str, float] = {
+            "phoneme": float(lw.phoneme),
+            "word":    float(lw.word),
+            "sentence": float(lw.sentence),
+        }
         self._mse = nn.MSELoss(reduction="mean")
+
+        # The ordered list of active metric keys mirrors the model's heads
+        from omegaconf import OmegaConf  # local import to keep top-level clean
+
+        self.active_metrics: list[str] = list(
+            OmegaConf.to_container(
+                cfg.metrics[cfg.score_mode], resolve=True
+            ).keys()  # type: ignore[union-attr]
+        )
 
     # ------------------------------------------------------------------
     # Forward
@@ -45,46 +81,50 @@ class MultiTaskLoss(nn.Module):
 
     def forward(
         self,
-        pred_phoneme: torch.Tensor,
-        pred_word: torch.Tensor,
-        pred_sentence: torch.Tensor,
-        target_phoneme: torch.Tensor,
-        target_word: torch.Tensor,
-        target_sentence: torch.Tensor,
+        predictions: dict[str, torch.Tensor],
+        targets: dict[str, torch.Tensor],
     ) -> tuple[torch.Tensor, dict[str, float]]:
         """Compute the total weighted loss and individual component losses.
 
         Args:
-            pred_phoneme:   (N_phonemes,)  — predicted phoneme scores.
-            pred_word:      (N_words,)     — predicted word scores.
-            pred_sentence:  (N_sentences,) — predicted sentence scores.
-            target_phoneme:   same shape as pred_phoneme.
-            target_word:      same shape as pred_word.
-            target_sentence:  same shape as pred_sentence.
+            predictions: dict mapping canonical metric key → predicted tensor.
+                         Must contain an entry for every key in
+                         ``self.active_metrics``. Visualisation keys
+                         (``word_attn_weights``, ``sentence_attn_weights``)
+                         are silently ignored.
+            targets:     dict mapping canonical metric key → ground-truth
+                         tensor.  Same keys as ``predictions``.
 
         Returns:
-            total_loss:  scalar tensor used for ``loss.backward()``.
-            components:  dict with float values for MLflow logging:
-                         ``{"loss_phoneme": …, "loss_word": …,
-                            "loss_sentence": …, "loss_total": …}``.
+            total_loss:  Scalar tensor used for ``loss.backward()``.
+            components:  Dict with float values for MLflow logging.
+                         Contains one ``"loss_<metric>"`` entry per active
+                         metric plus ``"loss_total"``.
         """
-        loss_p = self._mse(pred_phoneme, target_phoneme)
-        loss_w = self._mse(pred_word, target_word)
-        loss_s = self._mse(pred_sentence, target_sentence)
+        total: torch.Tensor | None = None
+        components: dict[str, float] = {}
 
-        total = (
-            self.w_phoneme * loss_p
-            + self.w_word * loss_w
-            + self.w_sentence * loss_s
-        )
+        for metric in self.active_metrics:
+            if metric not in predictions or metric not in targets:
+                raise KeyError(
+                    f"Metric '{metric}' missing from predictions or targets. "
+                    f"Available prediction keys: {list(predictions.keys())}."
+                )
+            pred = predictions[metric]
+            tgt = targets[metric]
+            level = _level_of(metric)
+            weight = self._level_weights[level]
 
-        components: dict[str, float] = {
-            "loss_phoneme": loss_p.item(),
-            "loss_word": loss_w.item(),
-            "loss_sentence": loss_s.item(),
-            "loss_total": total.item(),
-        }
+            metric_loss = self._mse(pred, tgt)
+            components[f"loss_{metric}"] = metric_loss.item()
 
+            weighted = weight * metric_loss
+            total = weighted if total is None else total + weighted
+
+        if total is None:
+            raise RuntimeError("No active metrics — loss cannot be computed.")
+
+        components["loss_total"] = total.item()
         return total, components
 
     # ------------------------------------------------------------------
@@ -92,9 +132,15 @@ class MultiTaskLoss(nn.Module):
     # ------------------------------------------------------------------
 
     def weights_dict(self) -> dict[str, float]:
-        """Return loss weights for MLflow ``log_params``."""
-        return {
-            "loss_weight_phoneme": self.w_phoneme,
-            "loss_weight_word": self.w_word,
-            "loss_weight_sentence": self.w_sentence,
+        """Return loss weights for MLflow ``log_params``.
+
+        Returns the level-based weights AND the active metric list so the
+        full loss configuration is captured in a single params call.
+        """
+        out: dict[str, float] = {
+            f"loss_weight_{level}": w
+            for level, w in self._level_weights.items()
         }
+        # Log which metrics are active (as a string, MLflow stores as str)
+        out["active_metrics"] = ",".join(self.active_metrics)  # type: ignore[assignment]
+        return out
