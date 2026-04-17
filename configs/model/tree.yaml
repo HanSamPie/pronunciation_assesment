@@ -1,0 +1,4 @@
+name: tree
+model_type: xgboost
+max_depth: 4
+min_samples_leaf: 5

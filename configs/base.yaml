@@ -1,0 +1,42 @@
+# Reproducibility
+seed: 42
+
+# Data paths
+data_dir: data/raw
+splits_dir: data/splits
+features_dir: data/features
+scalers_dir: data/scalers
+
+# Forced alignment
+mfa_model: english_mfa
+
+# Feature extraction
+feature_store: hdf5          # Storage format (HDF5)
+use_boundary_jitter: false   # Set true to enable ±5ms boundary jitter
+
+# Loss weights (easily editable)
+loss_weights:
+  phoneme: 1.0
+  word:    2.0
+  sentence: 5.0
+
+# Score modeling strategy
+# Toggle between "major_scores" (Accuracy only) and "all_metrics" (all scoring axes)
+score_mode: major_scores
+
+# Metric definitions per score_mode.
+# Each entry maps a canonical metric key to its maximum score value.
+# These are referenced by the model and loss to build the right set of heads.
+metrics:
+  major_scores:
+    phoneme_accuracy: 2.0
+    word_accuracy: 10.0
+    sentence_accuracy: 10.0
+  all_metrics:
+    phoneme_accuracy: 2.0
+    word_accuracy: 10.0
+    word_stress: 10.0
+    sentence_accuracy: 10.0
+    sentence_completeness: 1.0
+    sentence_fluency: 10.0
+    sentence_prosodic: 10.0
