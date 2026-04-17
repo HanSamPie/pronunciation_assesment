@@ -144,6 +144,20 @@ loss_weights:
   phoneme: 1.0
   word:    2.0
   sentence: 5.0
+
+# Score Modeling Strategy
+# Toggle between "major_scores" (Accuracy only) and "all_metrics" (all axes)
+score_mode: major_scores  # default
+
+# Definitions:
+# - major_scores:
+#     - Phoneme: Accuracy (0-2)
+#     - Word:    Accuracy (0-10)
+#     - Sentence: Accuracy (0-10)
+# - all_metrics:
+#     - Phoneme: Accuracy (0-2)
+#     - Word:    Accuracy (0-10), Stress (5 or 10)
+#     - Sentence: Accuracy (0-10), Completeness (0-1), Fluency (0-10), Prosodic (0-10)
 ```
 
 #### [NEW] `src/training/trainer.py` — MLflow Training Loop

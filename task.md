@@ -22,6 +22,7 @@
 ## Phase 2 — Model Implementation
 
 - `[x]` Implement `src/models/bigru.py` — Hierarchical Multi-Task Bi-GRU
+- `[ ]` Update Bi-GRU prediction heads for multi-metric support (Stress, Fluency, etc.)
 - `[x]` Implement `src/training/loss.py` — weighted multi-task MSE loss
 - `[x]` Implement `src/models/linear_baseline.py` — Linear Regression baseline
 - `[x]` Implement `src/models/tree_baseline.py` — Decision Tree / XGBoost baseline
@@ -31,6 +32,7 @@
 ## Phase 3 — Scientific Logging & Configuration
 
 - `[ ]` Implement `src/training/trainer.py` — MLflow training loop
+- `[ ]` Create configuration for "all metrics" vs "major scores" support
 
 ---
 
