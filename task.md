@@ -22,7 +22,7 @@
 ## Phase 2 — Model Implementation
 
 - `[x]` Implement `src/models/bigru.py` — Hierarchical Multi-Task Bi-GRU
-- `[ ]` Update Bi-GRU prediction heads for multi-metric support (Stress, Fluency, etc.)
+- `[x]` Update Bi-GRU prediction heads for multi-metric support (Stress, Fluency, etc.)
 - `[x]` Implement `src/training/loss.py` — weighted multi-task MSE loss
 - `[x]` Implement `src/models/linear_baseline.py` — Linear Regression baseline
 - `[x]` Implement `src/models/tree_baseline.py` — Decision Tree / XGBoost baseline
