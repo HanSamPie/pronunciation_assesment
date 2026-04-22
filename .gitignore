@@ -33,4 +33,4 @@ outputs/
 multirun/
 
 # Dataset
-src/data/raw/*
+data
