@@ -31,3 +31,6 @@ results.db
 # Hydra configs
 outputs/
 multirun/
+
+# Dataset
+src/data/raw/*
