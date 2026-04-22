@@ -1,4 +1,4 @@
-.PHONY: setup test train eval clean
+.PHONY: setup test split align extract normalize prep train eval clean
 
 # Python executable
 PYTHON = python
@@ -6,6 +6,20 @@ PYTHON = python
 setup:
 	pip install -r requirements.txt
 	pip install -e ".[dev]"
+
+split:
+	$(PYTHON) -m src.data.split
+
+align:
+	$(PYTHON) -m src.data.align
+
+extract:
+	$(PYTHON) -m src.data.extract
+
+normalize:
+	$(PYTHON) -m src.data.normalize
+
+prep: split align extract normalize
 
 test:
 	pytest
