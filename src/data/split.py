@@ -46,28 +46,72 @@ def _set_seeds(seed: int) -> None:
     np.random.seed(seed)
 
 
+def _parse_kaldi_keyval(path: Path) -> dict[str, str]:
+    """Parse a Kaldi-style two-column file (key<TAB|SPACE>value) into a dict."""
+    mapping: dict[str, str] = {}
+    if not path.exists():
+        return mapping
+    with open(path, "r") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(None, 1)  # split on first whitespace
+            if len(parts) == 2:
+                mapping[parts[0]] = parts[1]
+    return mapping
+
+
+def _parse_kaldi_text(path: Path) -> dict[str, str]:
+    """Parse a Kaldi ``text`` file (utt_id<TAB>transcript) into a dict."""
+    return _parse_kaldi_keyval(path)
+
+
+def _load_scores(data_dir: Path) -> dict:
+    """Load ``resource/scores.json`` if available."""
+    import json
+
+    scores_path = data_dir / "resource" / "scores.json"
+    if scores_path.exists():
+        with open(scores_path, "r") as fh:
+            return json.load(fh)
+    return {}
+
+
 def _load_metadata(data_dir: Path) -> pd.DataFrame:
     """
     Load the Speechocean762 metadata into a DataFrame.
 
-    The function handles both the original directory layout shipped with
-    Speechocean762 and a flat CSV layout that may be preferred for
-    pre-processed copies.
+    The function handles the **native** Speechocean762 directory layout which
+    follows Kaldi conventions, as well as a flat ``metadata.csv`` fallback.
 
-    Expected Speechocean762 root layout (``data_dir``):
-      data/raw/
-        WAVE/
-          <speaker_id>/
-            <sentence_id>.wav
-        ...
-        train/  or  resource/    (contains scores JSON files)
+    Native Speechocean762 layout (``data_dir``)::
+
+        data/raw/
+          WAVE/
+            SPEAKER0001/
+              000010011.WAV
+              ...
+          train/
+            utt2spk      # utterance_id  speaker_id
+            text          # utterance_id  TRANSCRIPT WORDS
+            wav.scp       # utterance_id  WAVE/SPEAKERxxxx/utterance_id.WAV
+            spk2age       # speaker_id  age
+            spk2gender    # speaker_id  m|f
+          test/
+            (same files as train/)
+          resource/
+            scores.json   # pronunciation scores keyed by utterance_id
 
     A ``metadata.csv`` in ``data_dir`` (if present) is used directly.
-    Otherwise the function walks the WAVE directory tree to construct it.
+    Otherwise the function parses the Kaldi-style files to construct it.
 
     Returns
     -------
-    pd.DataFrame with columns: speaker_id, sentence_id, wav_path, transcript
+    pd.DataFrame with columns:
+        speaker_id, sentence_id, wav_path, transcript,
+        age (int, if available), gender (str, if available),
+        original_split (str – the dataset's own train/test label)
     """
     meta_csv = data_dir / "metadata.csv"
     if meta_csv.exists():
@@ -76,10 +120,88 @@ def _load_metadata(data_dir: Path) -> pd.DataFrame:
         return df
 
     wave_dir = data_dir / "WAVE"
+
+    # ------------------------------------------------------------------
+    # Strategy 1 (preferred): parse Kaldi-style files from train/ & test/
+    # ------------------------------------------------------------------
+    kaldi_dirs = [d for d in [data_dir / "train", data_dir / "test"] if d.is_dir()]
+
+    if kaldi_dirs:
+        rows: list[dict] = []
+
+        # Gather demographic info across all sub-directories
+        spk2age: dict[str, str] = {}
+        spk2gender: dict[str, str] = {}
+        for kdir in kaldi_dirs:
+            spk2age.update(_parse_kaldi_keyval(kdir / "spk2age"))
+            spk2gender.update(_parse_kaldi_keyval(kdir / "spk2gender"))
+
+        # Load pronunciation scores (shared across train/test)
+        scores = _load_scores(data_dir)
+
+        for kdir in kaldi_dirs:
+            original_split = kdir.name  # "train" or "test"
+
+            utt2spk = _parse_kaldi_keyval(kdir / "utt2spk")
+            utt2text = _parse_kaldi_text(kdir / "text")
+            wav_scp = _parse_kaldi_keyval(kdir / "wav.scp")
+
+            for utt_id, spk_id in utt2spk.items():
+                # Resolve WAV path ─ wav.scp stores paths relative to data_dir
+                rel_wav = wav_scp.get(utt_id, "")
+                wav_path = (data_dir / rel_wav).resolve() if rel_wav else ""
+
+                # If wav.scp is missing or the file doesn't exist, try to find
+                # it by walking the WAVE directory.
+                if not rel_wav or not Path(wav_path).exists():
+                    if wave_dir.is_dir():
+                        # Speaker dirs are named SPEAKERxxxx; spk_id is xxxx
+                        candidate = wave_dir / f"SPEAKER{spk_id}" / f"{utt_id}.WAV"
+                        if candidate.exists():
+                            wav_path = str(candidate.resolve())
+
+                # Extract sentence-level scores if available
+                utt_scores: dict[str, object] = {}
+                if utt_id in scores:
+                    s = scores[utt_id]
+                    utt_scores = {
+                        "accuracy": s.get("accuracy"),
+                        "completeness": s.get("completeness"),
+                        "fluency": s.get("fluency"),
+                        "prosodic": s.get("prosodic"),
+                    }
+
+                row = {
+                    "speaker_id": spk_id,
+                    "sentence_id": utt_id,
+                    "wav_path": str(wav_path),
+                    "transcript": utt2text.get(utt_id, ""),
+                    "age": int(spk2age[spk_id]) if spk_id in spk2age else None,
+                    "gender": spk2gender.get(spk_id, ""),
+                    "original_split": original_split,
+                    **utt_scores,
+                }
+                rows.append(row)
+
+        if rows:
+            df = pd.DataFrame(rows)
+            log.info(
+                "Built metadata from Kaldi files: %d utterances, %d speakers, "
+                "partitions=%s",
+                len(df),
+                df["speaker_id"].nunique(),
+                sorted(df["original_split"].unique().tolist()),
+            )
+            return df
+
+    # ------------------------------------------------------------------
+    # Strategy 2 (fallback): walk WAVE/ directory tree directly
+    # ------------------------------------------------------------------
     if not wave_dir.exists():
         raise FileNotFoundError(
-            f"Cannot locate metadata. Expected either {meta_csv} "
-            f"or a WAVE/ sub-directory under {data_dir}."
+            f"Cannot locate metadata. Expected either {meta_csv}, "
+            f"Kaldi-style train/test sub-directories, or a WAVE/ "
+            f"sub-directory under {data_dir}."
         )
 
     rows = []
@@ -87,14 +209,24 @@ def _load_metadata(data_dir: Path) -> pd.DataFrame:
         if not spk_dir.is_dir():
             continue
         speaker_id = spk_dir.name
-        for wav_file in sorted(spk_dir.glob("*.wav")):
+        # Case-insensitive glob: match both .wav and .WAV
+        wav_files = sorted(
+            list(spk_dir.glob("*.wav")) + list(spk_dir.glob("*.WAV"))
+        )
+        # Deduplicate (in case filesystem is case-insensitive)
+        seen: set[str] = set()
+        for wav_file in wav_files:
+            key = wav_file.name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
             sentence_id = wav_file.stem
             rows.append(
                 {
                     "speaker_id": speaker_id,
                     "sentence_id": sentence_id,
                     "wav_path": str(wav_file.resolve()),
-                    "transcript": "",  # populated later if text files exist
+                    "transcript": "",
                 }
             )
 
@@ -245,3 +377,11 @@ def load_manifests(splits_dir: Path) -> dict[str, pd.DataFrame]:
             csv_path, dtype={"speaker_id": str, "sentence_id": str}
         )
     return manifests
+
+
+import hydra
+@hydra.main(version_base=None, config_path="../../configs", config_name="base")
+def main(cfg: DictConfig) -> None:
+    create_speaker_splits(cfg)
+if __name__ == "__main__":
+    main()
