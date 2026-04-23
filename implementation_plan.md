@@ -79,8 +79,8 @@ Speaker-independent train/val/test split (70/15/15) by `speaker_id`. Outputs man
 #### [NEW] `src/data/align.py`
 Wrapper around the **Montreal Forced Aligner (MFA)** CLI using the **`english_mfa`** pre-trained acoustic model. Consumes dataset audio + transcripts, outputs TextGrid files with phoneme boundary timings ($t_{start}$, $t_{end}$). The model name is specified in `configs/base.yaml` as `mfa_model: english_mfa`.
 
-#### [NEW] `src/data/extract.py`
-Wrapper around **openSMILE** to extract **eGeMAPS (88 features)** strictly within the MFA-derived phoneme boundaries. Supports optional **boundary jittering** (±5 ms, controlled by `use_boundary_jitter` config flag).
+#### [MODIFY] `src/data/extract.py`
+Wrapper around **openSMILE** to extract continuous **eGeMAPS Low-Level Descriptors (LLDs, 23 features per frame)** from the full audio recording, and sequentially align these frames to the MFA-derived phoneme boundaries. Replaces the previous 88-functional per-phoneme extraction approach. Supports optional **boundary jittering** (±5 ms, controlled by `use_boundary_jitter` config flag).
 
 #### [NEW] `src/data/persist.py`
 Serializes the extracted feature tensors to **HDF5** (via `h5py`), keyed by `(speaker_id, sentence_id, phoneme_index)`. Ensures exact reproducibility by decoupling extraction from training.
@@ -96,7 +96,7 @@ Fits a `sklearn.preprocessing.StandardScaler` on the training partition only. Ap
 
 | Layer | Detail |
 |---|---|
-| Input | Sequence of 88-dim eGeMAPS vectors per phoneme |
+| Input | Sequence of aligned 23-dim eGeMAPS LLD frames per phoneme |
 | Encoder | Bi-directional GRU |
 | Regularization | Dropout + L2 weight decay |
 | Pooling | Attention pooling (2 separate heads: word-level, sentence-level) |
@@ -196,6 +196,12 @@ Attention weight heatmaps: a specific sentence with aligned phonemes on the x-ax
 
 #### [NEW] `src/visualization/fairness_charts.py`
 Grouped bar charts of RMSE and PCC for Children vs. Adults to reveal model bias.
+
+#### [NEW] `src/visualization/mfa_alignment.py`
+Compares the MFA forced alignment data against the dataset's ground truth. Evaluates:
+- **Phoneme accuracy**: How accurately the phonemes were detected compared to the dataset.
+- **Timestep accuracy**: The precision of the phoneme boundaries (start and end times).
+Generates charts that visualize both phoneme and timestep accuracy relative to the accuracy score of the phrase.
 
 ---
 
