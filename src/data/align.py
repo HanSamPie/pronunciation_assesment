@@ -282,3 +282,17 @@ def run_alignment(
         log.info("MFA alignment complete. Output → %s", textgrid_out_dir)
 
     return parse_textgrids(textgrid_out_dir, manifest_df)
+
+
+import hydra
+@hydra.main(version_base=None, config_path="../../configs", config_name="base")
+def main(cfg: DictConfig) -> None:
+    from src.data.split import load_manifests
+    from pathlib import Path
+    import pandas as pd
+    
+    manifests = load_manifests(Path(cfg.splits_dir))
+    manifest_df = pd.concat(manifests.values(), ignore_index=True)
+    run_alignment(manifest_df, cfg)
+if __name__ == "__main__":
+    main()

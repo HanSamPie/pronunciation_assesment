@@ -271,3 +271,34 @@ def extract_features(
         result_df["speaker_id"].nunique(),
     )
     return result_df
+
+
+import hydra
+
+
+@hydra.main(version_base=None, config_path="../../configs", config_name="base")
+def main(cfg: DictConfig) -> None:
+    from src.data.split import load_manifests
+    from src.data.align import parse_textgrids
+    from src.data.persist import save_features
+
+    splits_dir = Path(cfg.splits_dir)
+    data_dir = Path(cfg.data_dir)
+    textgrid_dir = data_dir.parent / "textgrids"
+
+    manifests = load_manifests(splits_dir)
+
+    for partition, manifest_df in manifests.items():
+        log.info("Extracting features for partition: %s", partition)
+        boundary_df = parse_textgrids(textgrid_dir, manifest_df)
+        feature_df = extract_features(
+            boundary_df,
+            manifest_df,
+            cfg,
+            use_jitter=(partition == "train" and cfg.use_boundary_jitter),
+        )
+        save_features(feature_df, cfg, split=partition)
+
+
+if __name__ == "__main__":
+    main()

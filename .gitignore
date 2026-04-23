@@ -16,6 +16,8 @@ data/features/*
 !data/features/.gitkeep
 data/scalers/*
 !data/scalers/.gitkeep
+data/textgrids/*
+!data/textgrids/.gitkeep
 
 # Jupyter
 .ipynb_checkpoints/
@@ -31,6 +33,3 @@ results.db
 # Hydra configs
 outputs/
 multirun/
-
-# Dataset
-data
