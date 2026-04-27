@@ -76,11 +76,13 @@ pronunciation_assesment/
 #### [NEW] `src/data/split.py`
 Speaker-independent train/val/test split (70/15/15) by `speaker_id`. Outputs manifest files (CSV/JSON) keyed by speaker and sentence identifiers.
 
-#### [NEW] `src/data/align.py`
-Wrapper around the **Montreal Forced Aligner (MFA)** CLI using the **`english_mfa`** pre-trained acoustic model. Consumes dataset audio + transcripts, outputs TextGrid files with phoneme boundary timings ($t_{start}$, $t_{end}$). The model name is specified in `configs/base.yaml` as `mfa_model: english_mfa`.
+#### [NEW] `src/data/align_dataset.py` & `src/data/align.py`
+The pipeline supports dual alignment sources via the `alignment_source` config.
+- **`align_dataset.py`** parses the pre-computed word and phoneme boundary TextGrids that ship natively with Speechocean762. This is the **default** alignment source.
+- **`align.py`** serves as a wrapper around the **Montreal Forced Aligner (MFA)** CLI (using `english_mfa`) to generate alignments from scratch if desired.
 
 #### [MODIFY] `src/data/extract.py`
-Wrapper around **openSMILE** to extract continuous **eGeMAPS Low-Level Descriptors (LLDs, 23 features per frame)** from the full audio recording, and sequentially align these frames to the MFA-derived phoneme boundaries. Replaces the previous 88-functional per-phoneme extraction approach. Supports optional **boundary jittering** (±5 ms, controlled by `use_boundary_jitter` config flag).
+Wrapper around **openSMILE** to extract continuous **eGeMAPS v02 Low-Level Descriptors (LLDs, 25 features per frame)** from the full audio recording, and sequentially align these frames to the derived phoneme boundaries. Supports optional **boundary jittering** (±5 ms, controlled by `use_boundary_jitter` config flag).
 
 #### [NEW] `src/data/persist.py`
 Serializes the extracted feature tensors to **HDF5** (via `h5py`), keyed by `(speaker_id, sentence_id, phoneme_index)`. Ensures exact reproducibility by decoupling extraction from training.
@@ -96,7 +98,7 @@ Fits a `sklearn.preprocessing.StandardScaler` on the training partition only. Ap
 
 | Layer | Detail |
 |---|---|
-| Input | Sequence of aligned 23-dim eGeMAPS LLD frames per phoneme |
+| Input | Sequence of aligned 25-dim eGeMAPS LLD frames per phoneme |
 | Encoder | Bi-directional GRU |
 | Regularization | Dropout + L2 weight decay |
 | Pooling | Attention pooling (2 separate heads: word-level, sentence-level) |
@@ -135,7 +137,7 @@ All three values are logged to MLflow at run initialization, making them trivial
 seed: 42
 
 # Data
-mfa_model: english_mfa
+alignment_source: dataset    # "dataset" or "mfa"
 feature_store: hdf5
 use_boundary_jitter: false
 
@@ -230,7 +232,7 @@ Generates charts that visualize both phoneme and timestep accuracy relative to t
 | Multi-task loss weights | `phoneme: 1.0 / word: 2.0 / sentence: 5.0` (in `configs/base.yaml`) |
 | Feature storage format | **HDF5** (via `h5py`) |
 | Boundary jittering default | **`false`** (opt-in, not opt-out) |
-| MFA acoustic model | **`english_mfa`** |
+| Alignment source | **`dataset`** (native Speechocean762 alignments) |
 
 ---
 
