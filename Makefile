@@ -22,7 +22,7 @@ extract:
 normalize:
 	$(PYTHON) -m src.data.normalize
 
-prep: split align extract normalize
+prep: split align-dataset extract normalize
 
 test:
 	pytest
