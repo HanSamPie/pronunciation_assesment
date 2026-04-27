@@ -15,9 +15,9 @@
 
 - `[x]` Implement `src/data/split.py` — speaker-independent 70/15/15 split
 - `[x]` Implement `src/data/align.py` — MFA forced alignment wrapper (`english_mfa`)
-- `[ ]` Refactor `src/data/extract.py` — continuous openSMILE eGeMAPS LLD extraction (23 features/frame) + phoneme boundary alignment
-- `[ ]` Update `src/data/persist.py` — handle variable-length LLD frame sequences in HDF5 serialization
-- `[ ]` Update `src/data/normalize.py` — StandardScaler fit/transform for 23-dim LLD frames
+- `[x]` Refactor `src/data/extract.py` — continuous openSMILE eGeMAPS LLD extraction (23 features/frame) + phoneme boundary alignment
+- `[x]` Update `src/data/persist.py` — handle variable-length LLD frame sequences in HDF5 serialization
+- `[x]` Update `src/data/normalize.py` — StandardScaler fit/transform for 23-dim LLD frames
 
 ---
 
