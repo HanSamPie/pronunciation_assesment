@@ -14,6 +14,16 @@ mfa_model: english_mfa
 feature_store: hdf5          # Storage format (HDF5)
 use_boundary_jitter: false   # Set true to enable ±5ms boundary jitter
 
+# Phoneme boundary source
+# "dataset"  — use the pre-computed TextGrid alignments shipped with the dataset
+#              (default; no MFA installation required)
+# "mfa"      — use MFA-generated TextGrids (requires MFA on PATH)
+alignment_source: dataset
+
+# Root directory of the TextGrid files (relative or absolute).
+# Defaults to <data_dir>/../textgrids when left empty.
+textgrid_dir: ""
+
 # Loss weights (easily editable)
 loss_weights:
   phoneme: 1.0

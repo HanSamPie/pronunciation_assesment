@@ -10,8 +10,11 @@ setup:
 split:
 	$(PYTHON) -m src.data.split
 
-align:
+align-mfa:
 	$(PYTHON) -m src.data.align
+
+align-dataset:
+	$(PYTHON) -m src.data.align_dataset
 
 extract:
 	$(PYTHON) -m src.data.extract
