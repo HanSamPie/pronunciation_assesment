@@ -2,3 +2,6 @@ name: tree
 model_type: xgboost
 max_depth: 4
 min_samples_leaf: 5
+epochs: 1        # sklearn/XGBoost — single fit, no epochs
+batch_size: 256  # used for data-loading batch size only
+learning_rate: 0.0  # not applicable, kept for API symmetry

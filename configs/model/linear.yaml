@@ -1,1 +1,4 @@
 name: linear
+epochs: 1        # sklearn/linear — single fit, no epochs
+batch_size: 256  # used for data-loading batch size only
+learning_rate: 0.0  # not applicable, kept for API symmetry

@@ -1,11 +1,16 @@
 # Reproducibility
 seed: 42
 
+# MLflow
+mlflow_tracking_uri: http://127.0.0.1:5000
+experiment_name: apa_default
+
 # Data paths
 data_dir: data/raw
 splits_dir: data/splits
 features_dir: data/features
 scalers_dir: data/scalers
+scores_file: data/raw/resource/scores.json
 
 # Forced alignment
 mfa_model: english_mfa
