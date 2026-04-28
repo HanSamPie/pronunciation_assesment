@@ -1,8 +1,8 @@
 name: bigru
 hidden_size: 64
-num_layers: 3
+num_layers: 5
 dropout: 0.2
 l2_weight_decay: 1e-4
 learning_rate: 0.001
 batch_size: 32
-epochs: 50
+epochs: 25
