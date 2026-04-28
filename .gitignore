@@ -29,6 +29,9 @@ data/textgrids/*
 # MLflow and Evaluation
 mlruns/
 results.db
+mlartifacts/
+mlflow.db
+models/
 
 # Hydra configs
 outputs/

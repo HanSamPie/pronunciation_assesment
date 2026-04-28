@@ -421,4 +421,18 @@ class HierarchicalBiGRU(nn.Module):
         # Log each metric's max score for full reproducibility
         for metric, max_score in self.metric_max_scores.items():
             base[f"max_score_{metric}"] = max_score
+
+        # Scheduler hyperparameters
+        sched_cfg = self.cfg.model.get("scheduler", None)
+        if sched_cfg is not None:
+            base["scheduler_factor"] = float(sched_cfg.factor)
+            base["scheduler_patience"] = int(sched_cfg.patience)
+            base["scheduler_min_lr"] = float(sched_cfg.min_lr)
+
+        # Early stopping hyperparameters
+        es_cfg = self.cfg.model.get("early_stopping", None)
+        if es_cfg is not None:
+            base["early_stopping_patience"] = int(es_cfg.patience)
+            base["early_stopping_min_delta"] = float(es_cfg.min_delta)
+
         return base
