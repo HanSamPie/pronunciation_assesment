@@ -1,8 +1,19 @@
 name: bigru
-hidden_size: 32
-num_layers: 10
-dropout: 0.2
+hidden_size: 128
+num_layers: 3
+dropout: 0.3
 l2_weight_decay: 1e-4
-learning_rate: 0.001
-batch_size: 128
+learning_rate: 0.0005
+batch_size: 64
 epochs: 25
+
+# Learning rate scheduler (ReduceLROnPlateau)
+scheduler:
+  factor: 0.5         # multiply LR by this factor on plateau
+  patience: 3         # epochs with no improvement before reducing LR
+  min_lr: 1e-6        # lower bound on learning rate
+
+# Early stopping
+early_stopping:
+  patience: 7         # epochs with no improvement before stopping
+  min_delta: 0.005   # minimum change to qualify as improvement

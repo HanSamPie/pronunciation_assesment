@@ -1,4 +1,4 @@
-.PHONY: setup test split align extract normalize prep train eval clean
+.PHONY: setup test split align-mfa align-dataset extract normalize prep train mlflow-ui eval clean
 
 # Python executable
 PYTHON = python
@@ -27,8 +27,21 @@ prep: split align-dataset extract normalize
 test:
 	pytest
 
+# Model to train: bigru | linear | tree | all (default: all)
+MODEL ?= all
+
+ifeq ($(MODEL),all)
+	# No +model override — trainer detects missing cfg.model.name and runs all models
+TRAIN_CMD = $(PYTHON) -m src.training.trainer
+else
+TRAIN_CMD = $(PYTHON) -m src.training.trainer +model=$(MODEL)
+endif
+
 train:
-	$(PYTHON) -m src.training.trainer
+	$(TRAIN_CMD)
+
+mlflow-ui:
+	$(PYTHON) -m mlflow server --host 127.0.0.1 --port 5000
 
 eval:
 	$(PYTHON) -m src.evaluation.evaluate
