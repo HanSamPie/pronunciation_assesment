@@ -5,7 +5,7 @@ dropout: 0.3
 l2_weight_decay: 1e-4
 learning_rate: 0.0005
 batch_size: 64
-epochs: 25
+epochs: 100
 
 # Learning rate scheduler (ReduceLROnPlateau)
 scheduler:
@@ -15,5 +15,5 @@ scheduler:
 
 # Early stopping
 early_stopping:
-  patience: 7         # epochs with no improvement before stopping
-  min_delta: 0.005   # minimum change to qualify as improvement
+  patience: 15         # epochs with no improvement before stopping
+  min_delta: 0.0005   # minimum change to qualify as improvement
