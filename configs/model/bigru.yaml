@@ -1,6 +1,6 @@
 name: bigru
-hidden_size: 128
-num_layers: 3
+hidden_size: 25
+num_layers: 2
 dropout: 0.3
 l2_weight_decay: 1e-4
 learning_rate: 0.0005
@@ -15,5 +15,5 @@ scheduler:
 
 # Early stopping
 early_stopping:
-  patience: 15         # epochs with no improvement before stopping
+  patience: 5         # epochs with no improvement before stopping
   min_delta: 0.0005   # minimum change to qualify as improvement
