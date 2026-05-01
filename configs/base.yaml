@@ -17,7 +17,7 @@ mfa_model: english_mfa
 
 # Feature extraction
 feature_store: hdf5          # Storage format (HDF5)
-use_boundary_jitter: false   # Set true to enable ±5ms boundary jitter
+use_boundary_jitter: true   # Set true to enable ±5ms boundary jitter
 
 # Phoneme boundary source
 # "dataset"  — use the pre-computed TextGrid alignments shipped with the dataset
