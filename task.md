@@ -15,9 +15,9 @@
 
 - `[x]` Implement `src/data/split.py` — speaker-independent 70/15/15 split
 - `[x]` Implement `src/data/align.py` — MFA forced alignment wrapper (`english_mfa`)
-- `[x]` Refactor `src/data/extract.py` — continuous openSMILE eGeMAPS LLD extraction (23 features/frame) + phoneme boundary alignment
+- `[x]` Refactor `src/data/extract.py` — continuous openSMILE eGeMAPS LLD extraction (25 features/frame) + phoneme boundary alignment
 - `[x]` Update `src/data/persist.py` — handle variable-length LLD frame sequences in HDF5 serialization
-- `[x]` Update `src/data/normalize.py` — StandardScaler fit/transform for 23-dim LLD frames
+- `[x]` Update `src/data/normalize.py` — StandardScaler fit/transform for 25-dim LLD frames
 
 ---
 
@@ -43,6 +43,7 @@
 - `[x]` Implement `src/evaluation/evaluate.py` — PCC, RMSE, SRC metrics
 - `[x]` Implement `src/evaluation/cache.py` — SQLite MD5 result cache
 - `[x]` Implement `src/evaluation/fairness.py` — stratified fairness analysis
+- `[x]` Implement `src/evaluation/score_comparison.py` — cross-metric prediction-accuracy comparison for all_metrics
 
 ---
 
@@ -51,8 +52,9 @@
 - `[ ]` Implement `src/visualization/scatter.py`
 - `[ ]` Implement `src/visualization/loss_curves.py`
 - `[ ]` Implement `src/visualization/attention.py`
-- `[ ]` Implement `src/visualization/fairness_charts.py`
-- `[ ]` Implement `src/visualization/mfa_alignment.py` — Compare MFA phoneme/timestep accuracy against dataset ground truth and plot against phrase accuracy scores
+- `[ ]` Plot the results of the analysis in task 4 (compare accuracy of predicting different scores for all_metrics)
+#- `[ ]` Implement `src/visualization/fairness_charts.py`
+#- `[ ]` Implement `src/visualization/mfa_alignment.py` — Compare MFA phoneme/timestep accuracy against dataset ground truth and plot against phrase accuracy scores
 
 ---
 

@@ -30,9 +30,9 @@ All experiments are fully reproducible via fixed random seeds, Hydra configurati
 ## 1. Requirements
 
 - Python ≥ 3.10
+- [Montreal Forced Aligner (MFA)](https://montreal-forced-aligner.readthedocs.io/) installed and on `PATH`
 - [openSMILE](https://audeering.github.io/opensmile-python/) (installed via pip)
 - CUDA-capable GPU recommended for Bi-GRU training (CPU is supported but slow)
-- *Optional*: [Montreal Forced Aligner (MFA)](https://montreal-forced-aligner.readthedocs.io/) installed and on `PATH` (only needed if regenerating alignments instead of using the dataset defaults)
 
 ---
 
@@ -50,9 +50,9 @@ source .venv/bin/activate
 # Install Python dependencies
 pip install -r requirements.txt
 
-# (Optional) Download the MFA english_mfa acoustic model if using MFA alignments
-# mfa model download acoustic english_mfa
-# mfa model download dictionary english_mfa
+# Download the MFA english_mfa acoustic model
+mfa model download acoustic english_mfa
+mfa model download dictionary english_mfa
 ```
 
 ---
@@ -90,8 +90,8 @@ splits_dir: data/splits
 features_dir: data/features
 scalers_dir: data/scalers
 
-# Forced alignment source
-alignment_source: dataset    # "dataset" (pre-computed) or "mfa"
+# Forced alignment
+mfa_model: english_mfa
 
 # Feature extraction
 feature_store: hdf5          # Storage format (HDF5)
@@ -102,9 +102,6 @@ loss_weights:
   phoneme: 1.0
   word:    2.0
   sentence: 5.0
-
-# Score Modeling Strategy
-score_mode: major_scores  # Toggle "major_scores" or "all_metrics"
 ```
 
 To override any value at runtime without editing the file, use Hydra's override syntax:
@@ -132,22 +129,21 @@ Output: manifest files written to `data/splits/` (train.csv, val.csv, test.csv).
 
 ---
 
-### Step 2 — Alignment Verification
+### Step 2 — Forced Alignment
 
-By default, the pipeline uses the pre-computed ground-truth word and phoneme boundary alignments provided with the Speechocean762 dataset. Alternatively, you can use the Montreal Forced Aligner (MFA) to generate boundaries.
+Runs MFA on all audio files to extract phoneme-level timing boundaries ($t_{start}$, $t_{end}$).
 
 ```bash
-# If using MFA (ensure mfa is installed and alignment_source: mfa is set in config)
 python -m src.data.align
 ```
 
-> **Note:** MFA requires the `english_mfa` acoustic model. Alignment may take 30–60 minutes on the full dataset. Using the pre-computed `dataset` alignments requires no extra steps.
+> **Note:** MFA requires the `english_mfa` acoustic model (downloaded in the Installation step). Alignment may take 30–60 minutes on the full dataset. TextGrid output is cached; re-running skips completed files.
 
 ---
 
 ### Step 3 — Feature Extraction
 
-Extracts **eGeMAPS v02 Low-Level Descriptors (LLDs, 25 features per frame)** using openSMILE, natively extracting a continuous feature grid over the waveform, and sequentially aligning these frames strictly within phoneme boundaries. Features are serialized to HDF5.
+Extracts **eGeMAPS (88 features)** per phoneme using openSMILE, strictly within MFA boundaries. Features are serialized to HDF5.
 
 ```bash
 python -m src.data.extract
@@ -306,8 +302,7 @@ pronunciation_assesment/
 │   ├── data/
 │   │   ├── split.py            # Speaker-independent splitting
 │   │   ├── align.py            # MFA forced alignment wrapper
-│   │   ├── align_dataset.py    # Native dataset TextGrid parser
-│   │   ├── extract.py          # openSMILE eGeMAPS LLD extraction
+│   │   ├── extract.py          # openSMILE eGeMAPS extraction
 │   │   ├── persist.py          # HDF5 serialization
 │   │   └── normalize.py        # StandardScaler fit/transform
 │   ├── models/
