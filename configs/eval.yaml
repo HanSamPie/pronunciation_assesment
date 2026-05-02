@@ -3,7 +3,7 @@
 # Each entry is a path relative to the project root.
 # Multiple checkpoints can be listed for cross-checkpoint comparison.
 bigru_checkpoints:
-  - models/bigru_e5c32a395f044d548f9d3bcde3857cc1.pth #85abac2d9d1f4bf083cdb6a110d668cf.pth
+  - models/bigru_09a0d0bbb32e4ddf8485016771e96f14.pth #85abac2d9d1f4bf083cdb6a110d668cf.pth
 
 # Output directory for evaluation charts
 eval_output_dir: outputs/evaluation
