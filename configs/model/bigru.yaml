@@ -3,7 +3,7 @@ hidden_size: 25
 num_layers: 3
 dropout: 0.3
 l2_weight_decay: 1e-4
-learning_rate: 0.0005
+learning_rate: 0.0002
 batch_size: 64
 epochs: 100
 
