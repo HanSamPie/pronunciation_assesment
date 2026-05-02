@@ -17,7 +17,7 @@ mfa_model: english_mfa
 
 # Feature extraction
 feature_store: hdf5          # Storage format (HDF5)
-use_boundary_jitter: true   # Set true to enable ±5ms boundary jitter
+use_boundary_jitter: false   # Set true to enable ±5ms boundary jitter
 
 # Phoneme boundary source
 # "dataset"  — use the pre-computed TextGrid alignments shipped with the dataset
@@ -37,7 +37,7 @@ loss_weights:
 
 # Score modeling strategy
 # Toggle between "major_scores" (Accuracy only) and "all_metrics" (all scoring axes)
-score_mode: major_scores
+score_mode: all_metrics
 
 # Metric definitions per score_mode.
 # Each entry maps a canonical metric key to its maximum score value.
