@@ -1,4 +1,4 @@
-.PHONY: setup test split align-mfa align-dataset extract normalize prep train mlflow-ui eval clean
+.PHONY: setup test split align-mfa align-dataset extract normalize prep train mlflow-ui eval eval-clean clean
 
 # Python executable
 PYTHON = python
@@ -43,7 +43,16 @@ train:
 mlflow-ui:
 	$(PYTHON) -m mlflow server --host 127.0.0.1 --port 5000
 
+analyze:
+	$(PYTHON) -m src.analysis.score_distributions
+
 eval:
+	$(PYTHON) -m src.evaluation.evaluate
+
+eval-clean:
+	rm -f results.db
+	rm -rf outputs/evaluation/
+	@echo "Cleared evaluation cache and charts."
 	$(PYTHON) -m src.evaluation.evaluate
 
 clean:

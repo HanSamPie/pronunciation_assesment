@@ -35,39 +35,28 @@ SPLITS_DIR   = PROJECT_ROOT / "data" / "splits"
 RAW_DIR      = PROJECT_ROOT / "data" / "raw"
 OUTPUT_DIR   = PROJECT_ROOT / "outputs" / "analysis"
 
-# ── palette ─────────────────────────────────────────────────────────────
+# ── Default theme ──────────────────────────────────────────────────────
 PALETTE = {
-    "train": "#6366f1",   # indigo-500
+    "train": "#3b82f6",   # blue-500
     "val":   "#f59e0b",   # amber-500
     "test":  "#10b981",   # emerald-500
 }
 
-ACCENT      = "#818cf8"
-ACCENT_DARK = "#4f46e5"
-BG_COLOR    = "#0f172a"
-CARD_BG     = "#1e293b"
-TEXT_COLOR  = "#e2e8f0"
-GRID_COLOR  = "#334155"
+ACCENT      = "#3b82f6"
+ACCENT_DARK = "#2563eb"
+BG_COLOR    = "white"
+CARD_BG     = "white"
+TEXT_COLOR  = "black"
+GRID_COLOR  = "#e5e7eb"
 FONT_FAMILY = "DejaVu Sans"
 
 # ── matplotlib global styling ───────────────────────────────────────────
 plt.rcParams.update({
-    "figure.facecolor":   BG_COLOR,
-    "axes.facecolor":     CARD_BG,
-    "axes.edgecolor":     GRID_COLOR,
-    "axes.labelcolor":    TEXT_COLOR,
     "axes.grid":          True,
     "grid.color":         GRID_COLOR,
     "grid.alpha":         0.4,
-    "text.color":         TEXT_COLOR,
-    "xtick.color":        TEXT_COLOR,
-    "ytick.color":        TEXT_COLOR,
     "font.family":        FONT_FAMILY,
     "font.size":          11,
-    "legend.facecolor":   CARD_BG,
-    "legend.edgecolor":   GRID_COLOR,
-    "legend.labelcolor":  TEXT_COLOR,
-    "savefig.facecolor":  BG_COLOR,
     "savefig.bbox":       "tight",
     "savefig.dpi":        200,
 })
