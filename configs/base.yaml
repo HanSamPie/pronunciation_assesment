@@ -52,6 +52,5 @@ metrics:
     word_accuracy: 10.0
     word_stress: 10.0
     sentence_accuracy: 10.0
-    sentence_completeness: 1.0
     sentence_fluency: 10.0
     sentence_prosodic: 10.0
