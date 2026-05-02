@@ -217,7 +217,6 @@ class PronunciationDataset(Dataset):
         # (strip the level prefix to get the raw key in scores.json)
         _SENTENCE_KEY_MAP: dict[str, str] = {
             "sentence_accuracy":     "accuracy",
-            "sentence_completeness": "completeness",
             "sentence_fluency":      "fluency",
             "sentence_prosodic":     "prosodic",
         }
@@ -804,6 +803,8 @@ def _train_sklearn_baseline(cfg: DictConfig, model_class) -> None:
 
     Features are mean-pooled per sentence before fitting.  Baselines are
     single-output regressors, so they only use sentence-level targets.
+    For granular metrics (phoneme/word), the baseline targets the mean
+    of the granular ground-truth scores within the sentence.
     """
     import numpy as np
     from src.data.persist import load_features
@@ -815,60 +816,37 @@ def _train_sklearn_baseline(cfg: DictConfig, model_class) -> None:
         OmegaConf.to_container(cfg.metrics[cfg.score_mode], resolve=True).keys()
     )
 
-    # Mapping from canonical metric name to scores.json key.
-    # Baselines only predict sentence-level, but we support all metrics
-    # by mapping to the closest available score.
-    _METRIC_TO_JSON_KEY: dict[str, str] = {
-        "sentence_accuracy":     "accuracy",
-        "sentence_completeness": "completeness",
-        "sentence_fluency":      "fluency",
-        "sentence_prosodic":     "prosodic",
-        # For phoneme/word metrics, baselines use the sentence-level
-        # accuracy as a proxy (single output per sentence).
-        "phoneme_accuracy":      "accuracy",
-        "word_accuracy":         "accuracy",
-        "word_stress":           "accuracy",
-    }
-
     score_df, hierarchical_scores = _load_scores(cfg)
 
     def _pool_split(partition: str):
         """Load features and mean-pool per sentence → (X, y_dict)."""
         try:
-            arrays, _ = load_features(cfg, split=f"{partition}_scaled")
+            arrays, meta_df = load_features(cfg, split=f"{partition}_scaled")
         except FileNotFoundError:
-            arrays, _ = load_features(cfg, split=partition)
+            arrays, meta_df = load_features(cfg, split=partition)
 
-        # Group frames by sentence, compute mean per sentence
-        sentences: dict[tuple, list] = {}
-        for (spk, sent, ph_idx), arr in arrays.items():
-            key = (spk, sent)
-            if key not in sentences:
-                sentences[key] = []
-            sentences[key].append(arr.mean(axis=0))
+        split_scores = score_df[score_df["_split"] == partition].copy()
 
-        split_scores = score_df[score_df["_split"] == partition]
-        valid_sents = set(
-            zip(
-                split_scores["speaker_id"].astype(str),
-                split_scores["sentence_id"].astype(str),
-            )
+        ds = PronunciationDataset(
+            feature_arrays=arrays,
+            meta_df=meta_df,
+            cfg=cfg,
+            hierarchical_scores=hierarchical_scores,
+            score_df=split_scores,
         )
 
-        X_list, y_lists = [], {m: [] for m in active_metrics}
-        for (spk, sent), pooled_list in sentences.items():
-            if (str(spk), str(sent)) not in valid_sents:
-                continue
-
-            entry = hierarchical_scores.get(str(sent).zfill(9))
-            if entry is None:
-                continue
-
-            x = np.mean(pooled_list, axis=0)
-            X_list.append(x)
+        X_list = []
+        y_lists = {m: [] for m in active_metrics}
+        
+        for item in ds.samples:
+            X_list.append(np.mean(item["pooled"], axis=0))
             for metric in active_metrics:
-                json_key = _METRIC_TO_JSON_KEY.get(metric, "accuracy")
-                y_lists[metric].append(float(entry.get(json_key, 0.0)))
+                tgt = item["targets"][metric]
+                if isinstance(tgt, list):
+                    # For phonemes and words, target is the mean score over the sentence
+                    y_lists[metric].append(float(np.mean(tgt)) if tgt else 0.0)
+                else:
+                    y_lists[metric].append(float(tgt))
 
         X = np.stack(X_list)
         y = {m: np.array(vals) for m, vals in y_lists.items()}
