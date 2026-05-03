@@ -31,8 +31,8 @@ textgrid_dir: ""
 
 # Loss weights (easily editable)
 loss_weights:
-  phoneme: 1.0
-  word:    1.0
+  phoneme: 3.0
+  word:    2.0
   sentence: 1.0
 
 # Score modeling strategy
