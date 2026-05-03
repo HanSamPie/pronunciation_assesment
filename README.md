@@ -115,14 +115,14 @@ python -m src.training.trainer use_boundary_jitter=true
 
 ## 5. Running the Pipeline
 
-Run each step in order. Steps 1–4 are one-time data preparation steps; steps 5–6 can be repeated for different model configurations.
+Run each step in order. Alternatively, run `make prep` to execute steps 1–4 automatically (using dataset alignments). Steps 5–6 can be repeated for different model configurations.
 
 ### Step 1 — Data Splitting
 
 Splits speakers into Train (70%) / Validation (15%) / Test (15%). **No speaker appears in more than one partition.**
 
 ```bash
-python -m src.data.split
+make split
 ```
 
 Output: manifest files written to `data/splits/` (train.csv, val.csv, test.csv).
@@ -131,22 +131,26 @@ Output: manifest files written to `data/splits/` (train.csv, val.csv, test.csv).
 
 ### Step 2 — Forced Alignment
 
-Runs MFA on all audio files to extract phoneme-level timing boundaries ($t_{start}$, $t_{end}$).
+Extracts phoneme-level timing boundaries ($t_{start}$, $t_{end}$). You can either use the pre-computed alignments shipped with the dataset or run MFA.
 
 ```bash
-python -m src.data.align
+# Use pre-computed dataset alignments (Recommended)
+make align-dataset
+
+# OR run full MFA alignment
+make align-mfa
 ```
 
-> **Note:** MFA requires the `english_mfa` acoustic model (downloaded in the Installation step). Alignment may take 30–60 minutes on the full dataset. TextGrid output is cached; re-running skips completed files.
+> **Note:** MFA requires the `english_mfa` acoustic model (downloaded in the Installation step). Alignment may take 30–60 minutes on the full dataset. TextGrid output is cached.
 
 ---
 
 ### Step 3 — Feature Extraction
 
-Extracts **eGeMAPS (88 features)** per phoneme using openSMILE, strictly within MFA boundaries. Features are serialized to HDF5.
+Extracts **eGeMAPS LLD's (25 features)** from the audio file using openSMILE. The frames are then assigned to the corresponding phonemes based on the TextGrid alignment. Features are serialized to HDF5.
 
 ```bash
-python -m src.data.extract
+make extract
 ```
 
 To enable boundary jittering (±5 ms) for a training run:
@@ -164,7 +168,7 @@ Output: `data/features/features.h5`, keyed by `speaker_id / sentence_id / phonem
 Fits a `StandardScaler` on the **training partition only**, then applies it to validation and test. The scaler object is saved for use during evaluation.
 
 ```bash
-python -m src.data.normalize
+make normalize
 ```
 
 Output: `data/scalers/scaler.joblib`.
@@ -175,69 +179,82 @@ Output: `data/scalers/scaler.joblib`.
 
 ### Step 5 — Training
 
-Trains the primary Hierarchical Multi-Task Bi-GRU model. All hyperparameters are read from config. All metrics, the git commit hash, and the config are automatically logged to MLflow.
+Trains the models. By default, running `make train` will execute training for all models (BiGRU, Linear, Tree) sequentially. You can train a specific model by passing `MODEL=<name>`. All metrics, git commit hash, and configs are logged to MLflow.
 
 ```bash
-python -m src.training.trainer
+# Train all models
+make train
+
+# Train only Bi-GRU
+make train MODEL=bigru
 ```
 
-To override loss weights for a specific experiment:
-
+To override hyperparameters for a specific experiment, you can still run the trainer module directly:
 ```bash
-python -m src.training.trainer \
-  loss_weights.phoneme=1.0 \
-  loss_weights.word=3.0 \
-  loss_weights.sentence=8.0
+python -m src.training.trainer +model=bigru loss_weights.word=3.0
 ```
 
-The best validation checkpoint is saved as an MLflow artifact.
+#### Bi-GRU Model Architecture (`configs/model/bigru.yaml`)
+The primary model uses hierarchical multi-task learning. Its default architecture includes:
+* **Input**: 25 eGeMAPS LLD's as features.
+* **Encoder**: 3-layer Bi-GRU, hidden size 32 (64 total).
+* **Regularization**: Dropout 0.3, L2 weight decay 1e-4.
+* **Training**: Adam optimizer, initial LR 0.0005, batch size 64.
+  * **Learning Rate Scheduler**: `ReduceLROnPlateau` dynamically reduces the LR by a factor of 0.5 if validation loss fails to improve for 3 epochs (lower bound 1e-6).
+  * **Early Stopping**: Halts training if validation loss plateaus (minimum change 0.0005) for 8 consecutive epochs, and automatically restores the best model weights.
+* **Pooling & Prediction**: Learned scalar attention pooling at word and sentence levels. Prediction heads use 2-layer MLPs with ReLU activation, 20% dropout, and scaled Sigmoid outputs.
+
+The best validation checkpoints are saved as MLflow artifacts.
 
 ---
 
 ### Step 6 — Evaluation
 
-Runs deterministic evaluation (PCC, RMSE, Spearman) on the test set. Results are cached in a local **SQLite database** (`results.db`) by MD5 hash. Re-running with identical inputs returns the cached result instantly.
+Runs deterministic multi-split evaluation (train, val, test) across all models. Results are cached in a local **SQLite database** (`results.db`) by MD5 hash. Re-running with identical inputs returns the cached result instantly.
 
 ```bash
-python -m src.evaluation.evaluate --run-id <mlflow-run-id>
+make eval
 ```
 
-Fairness metrics (Children vs. Adults) are computed and reported automatically.
+Evaluation outputs are organized into model-specific directories: `outputs/evaluation/{split}/{model_type}/`. Dropout and boundary jitter are explicitly disabled during evaluation to ensure determinism.
+
+To clear the cache and force a re-evaluation:
+```bash
+make eval-clean
+```
 
 ---
 
 ## 6. Baselines
 
-Run the two classical baselines independently. They use statically pooled eGeMAPS features and also log to MLflow.
+The pipeline includes two classical baselines that operate on statically pooled features. Both are automatically trained when running `make train`.
 
-```bash
-# Baseline 1: Linear Regression
-python -m src.models.linear_baseline
+* **Linear Regression** (`linear`): Single fit, no epochs and batch size of 256.
+* **Decision Tree / XGBoost** (`tree`): Ensemble with max depth 4, min samples per leaf 5.
 
-# Baseline 2: Decision Tree / XGBoost
-python -m src.models.tree_baseline
-```
-
-Hyperparameters (e.g., `max_depth`, `min_samples_leaf`) are set in `configs/model/tree.yaml`.
+Their settings can be found in `configs/model/linear.yaml` and `configs/model/tree.yaml`.
 
 ---
 
 ## 7. Visualizations
 
-Publication-ready charts are generated automatically at the end of evaluation and logged to MLflow as high-DPI PNG artifacts. They can also be generated on demand:
+Publication-ready charts are generated automatically at the end of evaluation and organized in `outputs/evaluation/`. The visualization pipeline includes standardized theme styles and model color coding for consistency.
 
+Charts generated per split:
+* Predicted vs. human score scatter plots
+* Correlation matrix heatmaps
+* Error distribution histograms
+* Model comparison bar charts across splits
+* Demographic bias / fairness analysis (Children vs. Adults)
+* Loss curves and score accuracy analysis comparisons
+
+You can also run independent analyses:
 ```bash
-# Predicted vs. human score scatter plots (phoneme, word, sentence)
-python -m src.visualization.scatter --run-id <mlflow-run-id>
-
-# Training / validation loss curves
-python -m src.visualization.loss_curves --run-id <mlflow-run-id>
+# Analyze dataset score distributions
+make analyze
 
 # Attention weight heatmap for a selected sentence
-python -m src.visualization.attention --run-id <mlflow-run-id>
-
-# Fairness bar charts (Children vs. Adults)
-python -m src.visualization.fairness_charts --run-id <mlflow-run-id>
+# python -m src.visualization.attention --run-id <mlflow-run-id>
 ```
 
 ---
