@@ -3,8 +3,9 @@
 # Each entry is a path relative to the project root.
 # Multiple checkpoints can be listed for cross-checkpoint comparison.
 bigru_checkpoints:
+  - models/bigru_225075f949cc46e7a1974cb7752bcc74.pth
   - models/bigru_1a5de3262ad94cc59ef475be4680d329.pth
-#  - models/bigru_19f969dd2f3d404886fb5bd9952ac37c.pth 
+  - models/bigru_19f969dd2f3d404886fb5bd9952ac37c.pth 
 
 # - models/bigru_a0c6be32e255424ebd3d3d5fea26a8b3.pth <- majore metrics
 
