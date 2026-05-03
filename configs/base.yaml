@@ -33,7 +33,7 @@ textgrid_dir: ""
 loss_weights:
   phoneme: 1.0
   word:    2.0
-  sentence: 4.0
+  sentence: 3.0
 
 # Score modeling strategy
 # Toggle between "major_scores" (Accuracy only) and "all_metrics" (all scoring axes)
