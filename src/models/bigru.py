@@ -127,6 +127,48 @@ class AttentionPooling(nn.Module):
         return context, weights
 
 
+class MeanPooling(nn.Module):
+    """Mean pooling over a variable-length sequence."""
+
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__()
+        self.hidden_size = hidden_size
+
+    def forward(
+        self,
+        hidden: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if mask is not None:
+            # Mask out padding positions
+            hidden = hidden.masked_fill(~mask.unsqueeze(-1), 0.0)
+            # Sum and divide by the number of valid positions
+            lengths = mask.sum(dim=1, keepdim=True).clamp(min=1e-9)
+            context = hidden.sum(dim=1) / lengths
+        else:
+            context = hidden.mean(dim=1)
+        return context, None
+
+
+class MaxPooling(nn.Module):
+    """Max pooling over a variable-length sequence."""
+
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__()
+        self.hidden_size = hidden_size
+
+    def forward(
+        self,
+        hidden: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if mask is not None:
+            # Mask out padding positions with -inf
+            hidden = hidden.masked_fill(~mask.unsqueeze(-1), float("-inf"))
+        context = hidden.max(dim=1)[0]
+        return context, None
+
+
 # ---------------------------------------------------------------------------
 # Prediction head (shared MLP structure)
 # ---------------------------------------------------------------------------
@@ -243,10 +285,21 @@ class HierarchicalBiGRU(nn.Module):
         self.encoder_dropout = nn.Dropout(p=dropout)
 
         # ------------------------------------------------------------------
-        # Attention poolers (shared across all word / sentence heads)
+        # Pooling (shared across all word / sentence heads)
         # ------------------------------------------------------------------
-        self.word_attention = AttentionPooling(hidden_size=bigru_out_size)
-        self.sentence_attention = AttentionPooling(hidden_size=bigru_out_size)
+        self.pooling_type: str = str(cfg.model.get("pooling_type", "attention"))
+        
+        if self.pooling_type == "attention":
+            self.word_attention = AttentionPooling(hidden_size=bigru_out_size)
+            self.sentence_attention = AttentionPooling(hidden_size=bigru_out_size)
+        elif self.pooling_type == "mean":
+            self.word_attention = MeanPooling(hidden_size=bigru_out_size)
+            self.sentence_attention = MeanPooling(hidden_size=bigru_out_size)
+        elif self.pooling_type == "max":
+            self.word_attention = MaxPooling(hidden_size=bigru_out_size)
+            self.sentence_attention = MaxPooling(hidden_size=bigru_out_size)
+        else:
+            raise ValueError(f"Unknown pooling_type: '{self.pooling_type}'. Must be one of: attention, mean, max.")
 
         # ------------------------------------------------------------------
         # Prediction heads — one ModuleDict per level, keyed by metric name
@@ -381,12 +434,14 @@ class HierarchicalBiGRU(nn.Module):
                     word_hidden = word_hidden.unsqueeze(0)           # (1, W_len, 2*H)
                     ctx, attn = self.word_attention(word_hidden)     # (1, 2*H)
                     word_contexts.append(ctx)
-                    all_word_attn.append(attn.squeeze(0))
+                    if attn is not None:
+                        all_word_attn.append(attn.squeeze(0))
 
             batched_word_ctx = torch.cat(word_contexts, dim=0)  # (N_words, 2*H)
             for metric, head in self.word_heads.items():
                 outputs[metric] = head(batched_word_ctx)         # (N_words,)
-            outputs["word_attn_weights"] = all_word_attn  # type: ignore[assignment]
+            if all_word_attn:
+                outputs["word_attn_weights"] = all_word_attn  # type: ignore[assignment]
 
         # ---- 4. Sentence-level predictions -------------------------------
         if self.sentence_heads:
@@ -395,7 +450,8 @@ class HierarchicalBiGRU(nn.Module):
             )  # (B, 2*H), (B, T_max)
             for metric, head in self.sentence_heads.items():
                 outputs[metric] = head(sent_ctx)             # (B,)
-            outputs["sentence_attn_weights"] = sent_attn
+            if sent_attn is not None:
+                outputs["sentence_attn_weights"] = sent_attn
 
         return outputs
 
@@ -411,6 +467,7 @@ class HierarchicalBiGRU(nn.Module):
             "model_hidden_size": int(self.cfg.model.hidden_size),
             "model_num_layers": int(self.cfg.model.num_layers),
             "model_dropout": float(self.cfg.model.dropout),
+            "model_pooling_type": self.pooling_type,
             "model_l2_weight_decay": float(self.cfg.model.l2_weight_decay),
             "model_learning_rate": float(self.cfg.model.learning_rate),
             "model_batch_size": int(self.cfg.model.batch_size),

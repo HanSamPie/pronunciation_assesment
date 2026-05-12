@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /model: bigru
+
+# To train both models sequentially or in parallel using hydra's multirun,
+# you can use the following command:
+# python src/training/train.py experiment=bigru_baselines -m
+
+hydra:
+  sweeper:
+    params:
+      model.pooling_type: mean, max
