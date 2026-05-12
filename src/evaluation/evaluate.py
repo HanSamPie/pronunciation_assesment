@@ -35,31 +35,28 @@ from src.evaluation.cache import EvaluationCache, generate_cache_key, hash_file
 log = logging.getLogger(__name__)
 
 # Metrics computation (original utility functions preserved)
-from scipy.stats import pearsonr, spearmanr
+from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error
 
 
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     """
-    Computes RMSE, PCC, and SRC for a given set of targets and predictions.
+    Computes RMSE and PCC for a given set of targets and predictions.
     """
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
 
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
 
-    # PCC and SRC can be undefined if variance is 0 (all predictions or targets are the same)
+    # PCC can be undefined if variance is 0 (all predictions or targets are the same)
     if len(np.unique(y_true)) > 1 and len(np.unique(y_pred)) > 1:
         pcc, _ = pearsonr(y_true, y_pred)
-        src, _ = spearmanr(y_true, y_pred)
     else:
         pcc = float('nan')
-        src = float('nan')
 
     return {
         "rmse": float(rmse),
         "pcc": float(pcc),
-        "src": float(src)
     }
 
 
@@ -74,7 +71,7 @@ def evaluate_all_metrics(
         predictions: Dictionary mapping metric name to 1D array of predicted scores.
 
     Returns:
-        Dictionary mapping metric name to a dictionary of (rmse, pcc, src).
+        Dictionary mapping metric name to a dictionary of (rmse, pcc).
     """
     results = {}
     for metric_name in targets.keys():
@@ -450,7 +447,7 @@ def evaluate_model_on_split(
     Returns
     -------
     results : dict
-        {metric_name: {rmse, pcc, src}}
+        {metric_name: {rmse, pcc}}
     targets : dict
     predictions : dict
     speaker_ids : list[str]
@@ -564,7 +561,7 @@ def main() -> None:
         splits = ["train", "val", "test"]
 
         # ── Collect all results for cross-model charts ──────────────────
-        # Structure: {split: {model_name: {metric: {rmse, pcc, src}}}}
+        # Structure: {split: {model_name: {metric: {rmse, pcc}}}}
         all_results: dict[str, dict[str, dict]] = {s: {} for s in splits}
         # Structure: {split: {model_name: (targets, predictions, speaker_ids)}}
         all_data: dict[str, dict[str, tuple]] = {s: {} for s in splits}
@@ -654,8 +651,7 @@ def _print_results(model_name: str, split: str, results: dict) -> None:
     for metric, scores in results.items():
         pcc = scores.get("pcc", float("nan"))
         rmse = scores.get("rmse", float("nan"))
-        src = scores.get("src", float("nan"))
-        print(f"    {metric:30s}  PCC={pcc:.4f}  RMSE={rmse:.4f}  SRC={src:.4f}")
+        print(f"    {metric:30s}  PCC={pcc:.4f}  RMSE={rmse:.4f}")
 
 
 if __name__ == "__main__":

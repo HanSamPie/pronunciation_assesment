@@ -69,6 +69,21 @@ def _model_color(name: str, idx: int = 0) -> str:
     return _bigru_color(idx)
 
 
+def _group_metrics_by_level(metrics: list[str]) -> dict[str, list[str]]:
+    """Group metric names by hierarchy level (phoneme, word, sentence)."""
+    groups: dict[str, list[str]] = {}
+    for m in metrics:
+        if m.startswith("phoneme_"):
+            groups.setdefault("phoneme", []).append(m)
+        elif m.startswith("word_"):
+            groups.setdefault("word", []).append(m)
+        elif m.startswith("sentence_"):
+            groups.setdefault("sentence", []).append(m)
+        else:
+            groups.setdefault("other", []).append(m)
+    return groups
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # 1. Scatter: Predicted vs Ground Truth
 # ═══════════════════════════════════════════════════════════════════════
@@ -80,37 +95,39 @@ def plot_scatter_predictions(
     avail = [m for m in metrics if m in targets and m in predictions]
     if not avail:
         return
-    n = len(avail)
-    cols = min(n, 3)
-    rows = (n + cols - 1) // cols
-    fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5.5 * rows), squeeze=False)
-    fig.suptitle(f"Predicted vs Ground Truth — {model_name} [{split}]\n(PCC: higher is better)",
-                 fontsize=16, fontweight="bold", y=1.06)
-
-    for i, metric in enumerate(avail):
-        ax = axes[i // cols][i % cols]
-        yt = np.asarray(targets[metric]).ravel()
-        yp = np.asarray(predictions[metric]).ravel()
-        ax.scatter(yt, yp, alpha=0.25, s=8, c=ACCENT, edgecolors="none")
-        lo = min(yt.min(), yp.min()) - 0.5
-        hi = max(yt.max(), yp.max()) + 0.5
-        ax.plot([lo, hi], [lo, hi], "--", color="#f97316", linewidth=1.5, label="y=x")
-        try:
-            pcc, _ = pearsonr(yt, yp)
-            ax.set_title(f"{metric}  (PCC={pcc:.3f})", fontsize=11, fontweight="bold")
-        except Exception:
-            ax.set_title(metric, fontsize=11, fontweight="bold")
-        ax.set_xlabel("Ground Truth")
-        ax.set_ylabel("Predicted")
-        ax.legend(fontsize=8)
-
-    # hide unused axes
-    for j in range(n, rows * cols):
-        axes[j // cols][j % cols].set_visible(False)
-
-    fig.tight_layout()
+    level_groups = _group_metrics_by_level(avail)
     model_type = model_name.split('_')[0]
-    _save(fig, output_dir / split / model_type / f"scatter_predictions_{model_name}_{split}.png")
+
+    for level, level_metrics in level_groups.items():
+        n = len(level_metrics)
+        cols = min(n, 3)
+        rows = (n + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5.5 * rows), squeeze=False)
+        fig.suptitle(f"Predicted vs Ground Truth ({level}) — {model_name} [{split}]\n(PCC: higher is better)",
+                     fontsize=16, fontweight="bold", y=1.06)
+
+        for i, metric in enumerate(level_metrics):
+            ax = axes[i // cols][i % cols]
+            yt = np.asarray(targets[metric]).ravel()
+            yp = np.asarray(predictions[metric]).ravel()
+            ax.scatter(yt, yp, alpha=0.25, s=8, c=ACCENT, edgecolors="none")
+            lo = min(yt.min(), yp.min()) - 0.5
+            hi = max(yt.max(), yp.max()) + 0.5
+            ax.plot([lo, hi], [lo, hi], "--", color="#f97316", linewidth=1.5, label="y=x")
+            try:
+                pcc, _ = pearsonr(yt, yp)
+                ax.set_title(f"{metric}  (PCC={pcc:.3f})", fontsize=11, fontweight="bold")
+            except Exception:
+                ax.set_title(metric, fontsize=11, fontweight="bold")
+            ax.set_xlabel("Ground Truth")
+            ax.set_ylabel("Predicted")
+            ax.legend(fontsize=8)
+
+        for j in range(n, rows * cols):
+            axes[j // cols][j % cols].set_visible(False)
+
+        fig.tight_layout()
+        _save(fig, output_dir / split / model_type / f"scatter_predictions_{level}_{model_name}_{split}.png")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -125,20 +142,17 @@ def plot_metrics_bar(
     metrics = list(results.keys())
     pcc_vals = [results[m].get("pcc", 0) for m in metrics]
     rmse_vals = [results[m].get("rmse", 0) for m in metrics]
-    src_vals = [results[m].get("src", 0) for m in metrics]
 
     x = np.arange(len(metrics))
-    w = 0.25
+    w = 0.3
     fig, ax = plt.subplots(figsize=(max(8, len(metrics) * 2), 6))
-    bars1 = ax.bar(x - w, pcc_vals, w, label="PCC", color="#818cf8")
-    bars2 = ax.bar(x, rmse_vals, w, label="RMSE", color="#f97316")
-    bars3 = ax.bar(x + w, src_vals, w, label="SRC", color="#34d399")
+    bars1 = ax.bar(x - w / 2, pcc_vals, w, label="PCC", color="#818cf8")
+    bars2 = ax.bar(x + w / 2, rmse_vals, w, label="RMSE", color="#f97316")
     ax.bar_label(bars1, fmt='%.3f', padding=3, fontsize=8, color=TEXT_COLOR)
     ax.bar_label(bars2, fmt='%.3f', padding=3, fontsize=8, color=TEXT_COLOR)
-    ax.bar_label(bars3, fmt='%.3f', padding=3, fontsize=8, color=TEXT_COLOR)
     ax.set_xticks(x)
     ax.set_xticklabels(metrics, rotation=30, ha="right", fontsize=9)
-    ax.set_title(f"Evaluation Metrics — {model_name} [{split}]\n(PCC/SRC: higher is better, RMSE: lower is better)",
+    ax.set_title(f"Evaluation Metrics — {model_name} [{split}]\n(PCC: higher is better, RMSE: lower is better)",
                  fontsize=14, fontweight="bold")
     ax.legend()
     fig.tight_layout()
@@ -212,31 +226,34 @@ def plot_error_distribution(
     avail = [m for m in metrics if m in targets and m in predictions]
     if not avail:
         return
-    n = len(avail)
-    cols = min(n, 3)
-    rows = (n + cols - 1) // cols
-    fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows), squeeze=False)
-    fig.suptitle(f"Prediction Error Distribution — {model_name} [{split}]\n(closer to zero is better)",
-                 fontsize=16, fontweight="bold", y=1.06)
-
-    for i, metric in enumerate(avail):
-        ax = axes[i // cols][i % cols]
-        errors = np.asarray(predictions[metric]).ravel() - np.asarray(targets[metric]).ravel()
-        ax.hist(errors, bins=40, color=ACCENT, edgecolor=CARD_BG, alpha=0.85)
-        mu, sigma = errors.mean(), errors.std()
-        ax.axvline(mu, color="#f97316", linestyle="--", linewidth=1.5)
-        ax.text(0.97, 0.95, f"μ={mu:.3f}\nσ={sigma:.3f}",
-                transform=ax.transAxes, fontsize=9, va="top", ha="right",
-                bbox=dict(boxstyle="round,pad=0.3", fc=BG_COLOR, ec=GRID_COLOR, alpha=0.85))
-        ax.set_title(metric, fontsize=11, fontweight="bold")
-        ax.set_xlabel("Error (pred − true)")
-
-    for j in range(n, rows * cols):
-        axes[j // cols][j % cols].set_visible(False)
-
-    fig.tight_layout()
+    level_groups = _group_metrics_by_level(avail)
     model_type = model_name.split('_')[0]
-    _save(fig, output_dir / split / model_type / f"error_distribution_{model_name}_{split}.png")
+
+    for level, level_metrics in level_groups.items():
+        n = len(level_metrics)
+        cols = min(n, 3)
+        rows = (n + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows), squeeze=False)
+        fig.suptitle(f"Prediction Error Distribution ({level}) — {model_name} [{split}]\n(closer to zero is better)",
+                     fontsize=16, fontweight="bold", y=1.06)
+
+        for i, metric in enumerate(level_metrics):
+            ax = axes[i // cols][i % cols]
+            errors = np.asarray(predictions[metric]).ravel() - np.asarray(targets[metric]).ravel()
+            ax.hist(errors, bins=40, color=ACCENT, edgecolor=CARD_BG, alpha=0.85)
+            mu, sigma = errors.mean(), errors.std()
+            ax.axvline(mu, color="#f97316", linestyle="--", linewidth=1.5)
+            ax.text(0.97, 0.95, f"μ={mu:.3f}\nσ={sigma:.3f}",
+                    transform=ax.transAxes, fontsize=9, va="top", ha="right",
+                    bbox=dict(boxstyle="round,pad=0.3", fc=BG_COLOR, ec=GRID_COLOR, alpha=0.85))
+            ax.set_title(metric, fontsize=11, fontweight="bold")
+            ax.set_xlabel("Error (pred − true)")
+
+        for j in range(n, rows * cols):
+            axes[j // cols][j % cols].set_visible(False)
+
+        fig.tight_layout()
+        _save(fig, output_dir / split / model_type / f"error_distribution_{level}_{model_name}_{split}.png")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -250,44 +267,124 @@ def plot_prediction_frequency_bias(
     avail = [m for m in metrics if m in targets and m in predictions]
     if not avail:
         return
-    n = len(avail)
-    cols = min(n, 3)
-    rows = (n + cols - 1) // cols
-    fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows), squeeze=False)
-    fig.suptitle(f"Prediction Frequency Bias — {model_name} [{split}]\n(closer to zero is better)",
-                 fontsize=16, fontweight="bold", y=1.06)
-
-    for i, metric in enumerate(avail):
-        ax = axes[i // cols][i % cols]
-        yt = np.asarray(targets[metric]).ravel()
-        yp = np.asarray(predictions[metric]).ravel()
-
-        # Round to nearest integer for discrete binning
-        yt_r = np.round(yt).astype(int)
-        yp_r = np.round(yp).astype(int)
-        all_vals = sorted(set(yt_r) | set(yp_r))
-
-        n_total = len(yt_r)
-        gt_pct = {v: np.sum(yt_r == v) / n_total * 100 for v in all_vals}
-        pred_pct = {v: np.sum(yp_r == v) / n_total * 100 for v in all_vals}
-        bias = {v: pred_pct.get(v, 0) - gt_pct.get(v, 0) for v in all_vals}
-
-        colors = ["#34d399" if b >= 0 else "#f87171" for b in bias.values()]
-        bars = ax.bar([str(v) for v in all_vals], list(bias.values()), color=colors,
-               edgecolor=CARD_BG, linewidth=0.5)
-        ax.bar_label(bars, fmt='%.1f', padding=3, fontsize=8, color=TEXT_COLOR)
-        ax.axhline(0, color=TEXT_COLOR, linewidth=0.8, alpha=0.5)
-        ax.set_title(metric, fontsize=11, fontweight="bold")
-        ax.set_xlabel("Score Value")
-        ax.set_ylabel("Bias (pp)")
-        ax.tick_params(axis="x", labelsize=8)
-
-    for j in range(n, rows * cols):
-        axes[j // cols][j % cols].set_visible(False)
-
-    fig.tight_layout()
+    level_groups = _group_metrics_by_level(avail)
     model_type = model_name.split('_')[0]
-    _save(fig, output_dir / split / model_type / f"prediction_bias_{model_name}_{split}.png")
+
+    for level, level_metrics in level_groups.items():
+        n = len(level_metrics)
+        cols = min(n, 3)
+        rows = (n + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows), squeeze=False)
+        fig.suptitle(f"Prediction Frequency Bias ({level}) — {model_name} [{split}]\n(closer to zero is better)",
+                     fontsize=16, fontweight="bold", y=1.06)
+
+        for i, metric in enumerate(level_metrics):
+            ax = axes[i // cols][i % cols]
+            yt = np.asarray(targets[metric]).ravel()
+            yp = np.asarray(predictions[metric]).ravel()
+
+            # Round to nearest integer for discrete binning
+            yt_r = np.round(yt).astype(int)
+            yp_r = np.round(yp).astype(int)
+            all_vals = sorted(set(yt_r) | set(yp_r))
+
+            n_total = len(yt_r)
+            gt_pct = {v: np.sum(yt_r == v) / n_total * 100 for v in all_vals}
+            pred_pct = {v: np.sum(yp_r == v) / n_total * 100 for v in all_vals}
+            bias = {v: pred_pct.get(v, 0) - gt_pct.get(v, 0) for v in all_vals}
+
+            colors = ["#34d399" if b >= 0 else "#f87171" for b in bias.values()]
+            bars = ax.bar([str(v) for v in all_vals], list(bias.values()), color=colors,
+                   edgecolor=CARD_BG, linewidth=0.5)
+            ax.bar_label(bars, fmt='%.1f', padding=3, fontsize=8, color=TEXT_COLOR)
+            ax.axhline(0, color=TEXT_COLOR, linewidth=0.8, alpha=0.5)
+            ax.set_title(metric, fontsize=11, fontweight="bold")
+            ax.set_xlabel("Score Value")
+            ax.set_ylabel("Bias (pp)")
+            ax.tick_params(axis="x", labelsize=8)
+
+        for j in range(n, rows * cols):
+            axes[j // cols][j % cols].set_visible(False)
+
+        fig.tight_layout()
+        _save(fig, output_dir / split / model_type / f"prediction_bias_{level}_{model_name}_{split}.png")
+
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 6b. Prediction counts (absolute + percentage)
+# ═══════════════════════════════════════════════════════════════════════
+
+def plot_prediction_counts(
+    targets: dict, predictions: dict, model_name: str,
+    split: str, metrics: list[str], output_dir: Path,
+):
+    """Bar chart showing Ground Truth vs Predicted score counts (absolute + %)."""
+    avail = [m for m in metrics if m in targets and m in predictions]
+    if not avail:
+        return
+    level_groups = _group_metrics_by_level(avail)
+    model_type = model_name.split('_')[0]
+
+    for level, level_metrics in level_groups.items():
+        n = len(level_metrics)
+        cols = min(n, 3)
+        rows = (n + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(7 * cols, 5.5 * rows), squeeze=False)
+        fig.suptitle(
+            f"Prediction Counts ({level}) \u2014 {model_name} [{split}]\n"
+            f"(bars: absolute count, labels: count + percentage)",
+            fontsize=16, fontweight="bold", y=1.06,
+        )
+
+        for i, metric in enumerate(level_metrics):
+            ax = axes[i // cols][i % cols]
+            yt = np.asarray(targets[metric]).ravel()
+            yp = np.asarray(predictions[metric]).ravel()
+
+            yt_r = np.round(yt).astype(int)
+            yp_r = np.round(yp).astype(int)
+            all_vals = sorted(set(yt_r) | set(yp_r))
+
+            n_total = len(yt_r)
+            gt_counts = {v: int(np.sum(yt_r == v)) for v in all_vals}
+            pred_counts = {v: int(np.sum(yp_r == v)) for v in all_vals}
+
+            x = np.arange(len(all_vals))
+            w = 0.35
+            gt_vals = [gt_counts[v] for v in all_vals]
+            pr_vals = [pred_counts[v] for v in all_vals]
+
+            bars_gt = ax.bar(x - w / 2, gt_vals, w, label="Ground Truth",
+                             color="#818cf8", edgecolor=CARD_BG, linewidth=0.5)
+            bars_pr = ax.bar(x + w / 2, pr_vals, w, label="Predicted",
+                             color="#f97316", edgecolor=CARD_BG, linewidth=0.5)
+
+            # Labels: count (pct%)
+            for bar, count in zip(bars_gt, gt_vals):
+                pct = count / n_total * 100
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                        f"{count}\n({pct:.1f}%)", ha="center", va="bottom",
+                        fontsize=7, color=TEXT_COLOR)
+            for bar, count in zip(bars_pr, pr_vals):
+                pct = count / n_total * 100
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                        f"{count}\n({pct:.1f}%)", ha="center", va="bottom",
+                        fontsize=7, color=TEXT_COLOR)
+
+            ax.set_xticks(x)
+            ax.set_xticklabels([str(v) for v in all_vals], fontsize=8)
+            ax.set_title(f"{metric}  (n={n_total})", fontsize=11, fontweight="bold")
+            ax.set_xlabel("Score Value")
+            ax.set_ylabel("Count")
+            ax.legend(fontsize=8)
+
+        for j in range(n, rows * cols):
+            axes[j // cols][j % cols].set_visible(False)
+
+        fig.tight_layout()
+        _save(fig, output_dir / split / model_type / f"prediction_counts_{level}_{model_name}_{split}.png")
+
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -578,6 +675,8 @@ def generate_all_charts(
                                      active_metrics, output_dir)
             plot_prediction_frequency_bias(targets, predictions, model_name, split,
                                             active_metrics, output_dir)
+            plot_prediction_counts(targets, predictions, model_name, split,
+                                    active_metrics, output_dir)
             plot_correlation_matrix(targets, predictions, model_name, split,
                                      output_dir)
             if manifest_df is not None:
@@ -607,9 +706,9 @@ def generate_all_charts(
             for metric, scores in results.items():
                 if metric not in combined_results[key]:
                     combined_results[key][metric] = {
-                        "pcc": [], "rmse": [], "src": []
+                        "pcc": [], "rmse": []
                     }
-                for k in ("pcc", "rmse", "src"):
+                for k in ("pcc", "rmse"):
                     combined_results[key][metric][k].append(scores.get(k, 0))
 
     # Average across splits

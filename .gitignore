@@ -36,3 +36,6 @@ models/
 # Hydra configs
 outputs/
 multirun/
+
+
+model_training_configs.md

@@ -290,7 +290,7 @@ def extract_features(
     -------
     feature_arrays : dict
         * With boundaries: ``{(speaker_id, sentence_id, phoneme_index): np.ndarray}``
-          Each value is shape ``(T_frames, 23)`` — variable length per phoneme.
+          Each value is shape ``(T_frames, 25)`` — variable length per phoneme.
         * Without boundaries: ``{(speaker_id, sentence_id): np.ndarray}``
           Each value is the full file frame matrix.
     meta_df : pd.DataFrame

@@ -35,7 +35,6 @@ Column                 Description
 ``n_samples``          Number of (target, prediction) pairs evaluated
 ``rmse``               Root-mean-squared error
 ``pcc``                Pearson correlation coefficient
-``src``                Spearman rank correlation
 ``max_score``          Upper bound of the metric's score range (from config)
 ``normalised_rmse``    ``rmse / max_score`` — scale-free error measure
 ``rank_by_pcc``        Rank of each metric by descending PCC (1 = easiest to predict)
@@ -194,7 +193,7 @@ def compare_score_predictions(
                 "n_samples": n_samples,
                 "rmse": metric_scores["rmse"],
                 "pcc": metric_scores["pcc"],
-                "src": metric_scores["src"],
+    
                 "max_score": max_score,
                 "normalised_rmse": normalised_rmse,
             }
@@ -205,7 +204,7 @@ def compare_score_predictions(
         return pd.DataFrame(
             columns=[
                 "metric", "level", "n_samples",
-                "rmse", "pcc", "src",
+                "rmse", "pcc",
                 "max_score", "normalised_rmse", "rank_by_pcc",
             ]
         )
@@ -246,7 +245,7 @@ def summarise_by_level(df: pd.DataFrame) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        Columns: ``level``, ``n_metrics``, ``mean_pcc``, ``mean_src``,
+        Columns: ``level``, ``n_metrics``, ``mean_pcc``,
         ``mean_rmse``, ``mean_normalised_rmse``.
         Ordered phoneme → word → sentence.
     """
@@ -256,7 +255,6 @@ def summarise_by_level(df: pd.DataFrame) -> pd.DataFrame:
         .agg(
             n_metrics=("metric", "count"),
             mean_pcc=("pcc", "mean"),
-            mean_src=("src", "mean"),
             mean_rmse=("rmse", "mean"),
             mean_normalised_rmse=("normalised_rmse", "mean"),
         )
@@ -287,7 +285,7 @@ def format_report(df: pd.DataFrame, float_fmt: str = ".4f") -> str:
     """
     display_cols = [
         "rank_by_pcc", "metric", "level", "n_samples",
-        "pcc", "src", "rmse", "normalised_rmse",
+        "pcc", "rmse", "normalised_rmse",
     ]
     available = [c for c in display_cols if c in df.columns]
     return df[available].to_string(index=False, float_format=f"{{:{float_fmt}}}".format)
