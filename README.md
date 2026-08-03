@@ -8,22 +8,58 @@ All experiments are fully reproducible via fixed random seeds, Hydra configurati
 
 ## Table of Contents
 
-1. [Requirements](#1-requirements)
-2. [Installation](#2-installation)
-3. [Dataset Setup](#3-dataset-setup)
-4. [Configuration](#4-configuration)
-5. [Running the Pipeline](#5-running-the-pipeline)
+1. [Cookbook Quick Reference](#cookbook-quick-reference)
+2. [Requirements](#1-requirements)
+3. [Installation](#2-installation)
+4. [Dataset Setup](#3-dataset-setup)
+5. [Configuration](#4-configuration)
+6. [Running the Pipeline](#5-running-the-pipeline)
    - [Step 1 — Data Splitting](#step-1--data-splitting)
    - [Step 2 — Forced Alignment](#step-2--forced-alignment)
    - [Step 3 — Feature Extraction](#step-3--feature-extraction)
    - [Step 4 — Normalization](#step-4--normalization)
    - [Step 5 — Training](#step-5--training)
    - [Step 6 — Evaluation](#step-6--evaluation)
-6. [Baselines](#6-baselines)
-7. [Visualizations](#7-visualizations)
-8. [MLflow Tracking](#8-mlflow-tracking)
-9. [Reproducibility Notes](#9-reproducibility-notes)
-10. [Project Structure](#10-project-structure)
+7. [Baselines](#6-baselines)
+8. [Visualizations](#7-visualizations)
+9. [MLflow Tracking](#8-mlflow-tracking)
+10. [Reproducibility Notes](#9-reproducibility-notes)
+11. [Project Structure](#10-project-structure)
+
+---
+
+## Cookbook Quick Reference
+
+Here are common copy-paste recipes for running, configuring, and evaluating the project:
+
+### Recipe 1: End-to-End Pipeline in Two Commands
+```bash
+make prep   # Runs split, alignment, feature extraction, & normalization automatically
+make train  # Trains all models (BiGRU, Linear Baseline, Tree Baseline)
+make eval   # Evaluates all models & generates charts
+```
+
+### Recipe 2: Training a Specific Model
+```bash
+make train MODEL=bigru    # Train BiGRU primary model
+make train MODEL=linear   # Train Linear Regression baseline
+make train MODEL=tree     # Train Decision Tree / XGBoost baseline
+```
+
+### Recipe 3: Hyperparameter & Loss Weight Overrides
+```bash
+# Override loss weights dynamically
+python -m src.training.trainer +model=bigru loss_weights.phoneme=1.0 loss_weights.word=3.0 loss_weights.sentence=5.0
+
+# Toggle between major scores (accuracy only) and all metrics
+python -m src.training.trainer +model=bigru score_mode=all_metrics
+```
+
+### Recipe 4: MLflow Experiment Tracking UI
+```bash
+make mlflow-ui
+# Open http://localhost:5000 in your browser
+```
 
 ---
 
@@ -290,10 +326,10 @@ Each run automatically logs:
 - **Seeds**: Python, NumPy, and PyTorch seeds are all set from `configs/base.yaml` (`seed: 42`) and logged to MLflow.
 - **Scaler**: Fit once on training data; the `scaler.joblib` artifact ensures identical normalization on every evaluation run.
 - **Evaluation cache**: The SQLite cache in `results.db` uses an MD5 hash of (config + model weights + test dataset) — identical inputs always return identical, cached outputs.
-- **Git tagging**: Tag the commit corresponding to your thesis-final experiment for long-term traceability:
+- **Git tagging**: Tag the commit corresponding to your final experiment run for long-term traceability:
   ```bash
-  git tag -a thesis-final -m "Final experiment run"
-  git push origin thesis-final
+  git tag -a experiment-final -m "Final experiment run"
+  git push origin experiment-final
   ```
 
 ---
